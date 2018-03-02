@@ -22,14 +22,18 @@ import java.util.jar.JarFile;
 import fr.inra.ctig.dao2interface.beans.ClassToInterface;
 
 public class Dao2Interface {
-
-	private static String projectName = "projetsCoeur";
-	private static String projetUrl = "/home/jmillot/devJava/" + projectName + "/";
+	private static String projetUrl;
+	private static String projectName;
+//	private static String projetUrl = "/home/jmillot/devJava/" + projectName + "/";
 	public static List<File> listPackages;
 	public static List<String> excludedFolderNames = Arrays.asList(".m2", "src");
 	public static List<String> excludedTypeNames = Arrays.asList("", "?", "T", "boolean", "String", "void", "int", "double", "float", "long", "char", "byte", "java.lang.String", "java.lang.Class<?>", "java.lang.Class");
 
 	public static void main(String[] args) throws ClassNotFoundException, IOException {
+		projetUrl = args[0];
+		projectName = projetUrl.substring(0, projetUrl.length() - 1);
+		projectName = projectName.substring(projectName.lastIndexOf('/'));
+		System.out.println("Actual project Path : " + projetUrl + " Name : " + projectName);
 		Dao2Interface dao2Interface = new Dao2Interface();
 		File packageFolder = new File(projetUrl);
 		
