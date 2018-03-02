@@ -12,6 +12,8 @@ import java.lang.reflect.Parameter;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -19,30 +21,58 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import fr.inra.ctig.dao2interface.beans.ClassToInterface;
 
 public class Dao2Interface {
 	private static String projetUrl;
 	private static String projectName;
-//	private static String projetUrl = "/home/jmillot/devJava/" + projectName + "/";
 	public static List<File> listPackages;
 	public static List<String> excludedFolderNames = Arrays.asList(".m2", "src");
 	public static List<String> excludedTypeNames = Arrays.asList("", "?", "T", "boolean", "String", "void", "int", "double", "float", "long", "char", "byte", "java.lang.String", "java.lang.Class<?>", "java.lang.Class");
 
-	public static void main(String[] args) throws ClassNotFoundException, IOException {
-		projetUrl = args[0];
-		projectName = projetUrl.substring(0, projetUrl.length() - 1);
-		projectName = projectName.substring(projectName.lastIndexOf('/'));
-		System.out.println("Actual project Path : " + projetUrl + " Name : " + projectName);
-		Dao2Interface dao2Interface = new Dao2Interface();
-		File packageFolder = new File(projetUrl);
+	public static void main(String[] args) throws ClassNotFoundException {
+		Path path;
+		File argument = null;
 		
-		dao2Interface.setClassPath(dao2Interface.getClassPath());
-		System.out.println("PackageFolder url : " + packageFolder.getPath());
-		listPackages = dao2Interface.searchDAOPackages(packageFolder);
-		System.out.println("DAO Entries : " + listPackages.size());		
-		List<Class<?>> classToConvert = dao2Interface.readPackages(listPackages);	
-		dao2Interface.createInterfaceFromDAOClasses(classToConvert);
+		if(args.length > 0) {
+			argument = new File(args[0]);			
+			path = argument.toPath();
+			if(argument.isDirectory() && Files.exists(path) && argument.getAbsolutePath().length() >= 3) {
+				projetUrl = args[0];
+				projectName = projetUrl.substring(0, projetUrl.length() - 1);
+				projectName = projectName.substring(projectName.lastIndexOf('/'));
+				System.out.println("Actual project Path : " + projetUrl + " Name : " + projectName + ".\n");
+				Dao2Interface dao2Interface = new Dao2Interface();
+				File packageFolder = new File(projetUrl);
+				
+				try {
+					dao2Interface.setClassPath(dao2Interface.getClassPath());
+					System.out.println("PackageFolder url : " + packageFolder.getPath() + ".\n");
+					listPackages = dao2Interface.searchDAOPackages(packageFolder);
+					System.out.println("DAO Entries : " + listPackages.size() + ".\n");		
+					List<Class<?>> classToConvert;
+					classToConvert = dao2Interface.readPackages(listPackages);
+					dao2Interface.createInterfaceFromDAOClasses(classToConvert);
+				} catch (IOException e) {					
+					e.printStackTrace();
+				}
+			} else {
+				System.out.println("Le chemin complet du projet à traiter est incorrect.\n");
+				System.out.println("Merci de bien vouloir l'entrer sous le format \"/.../\" sous linux\n");
+				System.out.println("Ou au format \"C:\\...\\...\\\" sous windows.");
+				System.exit(0);
+			}
+				
+		} else {
+			System.out.println("Le chemin complet du projet à traiter est absent.\n");
+			System.out.println("Merci de bien vouloir l'entrer sous le format \"/.../\" sous linux\n");
+			System.out.println("Ou au format \"C:\\...\\...\\\" sous windows.");
+			System.exit(0);
+		}
+		
 	}
 
 	public List<File> searchDAOPackages(File packageFolder) {
@@ -51,7 +81,7 @@ public class Dao2Interface {
 		for(File folder : packageFolder.listFiles()) {
 			if (folder.isDirectory() && !excludedFolderNames.contains(folder.getName())) {
 				if (folder.getName().toLowerCase().contains("target")) {
-					System.out.println("Folder: " + folder.getAbsolutePath());
+					System.out.println("Folder: " + folder.getAbsolutePath() + ".\n");
 					daoPackages.add(folder);
 				}
 				daoPackages.addAll(searchDAOPackages(folder));
@@ -67,7 +97,12 @@ public class Dao2Interface {
 			JarFile jarFile;
 			for(File file : pack.listFiles()) {				
 				if(file.getName().toLowerCase().contains(".jar")) {
-					System.out.println("JAR file found : " + file.getName());
+					System.out.println("JAR file found : " + file.getName() + ".\n");
+					jarFile = new JarFile(file.getAbsolutePath());
+					URL[] urls = { new URL("jar:file:" + file.getAbsolutePath() +"!/") };
+					return dao2Interface.convertJarFileToClasses(urls, jarFile);
+				} else if (file.getName().toLowerCase().contains(".war")) {
+					System.out.println("WAR file found : " + file.getName() + ".\n");
 					jarFile = new JarFile(file.getAbsolutePath());
 					URL[] urls = { new URL("jar:file:" + file.getAbsolutePath() +"!/") };
 					return dao2Interface.convertJarFileToClasses(urls, jarFile);
@@ -95,7 +130,7 @@ public class Dao2Interface {
 		if(!classPath.contains(f.getAbsolutePath() + "/")) {
 			try {				
 				URL u = f.toURI().toURL();
-				System.out.println("Path créé : " + f.getPath());
+				System.out.println("Path créé : " + f.getPath() + ".\n");
 				URLClassLoader urlClassLoader = (URLClassLoader) ClassLoader.getSystemClassLoader();
 				Class urlClass = URLClassLoader.class;
 				Method method = urlClass.getDeclaredMethod("addURL", new Class[]{URL.class});
@@ -115,7 +150,7 @@ public class Dao2Interface {
 				e.printStackTrace();
 			}
 		} else {
-			System.out.println("Path du projet déjà présent dans le CLASSPATH, il ne sera pas ajouter.");
+			System.out.println("Path du projet déjà présent dans le CLASSPATH, il ne sera pas ajouter.\n");
 		}			
 
 	}
@@ -123,11 +158,12 @@ public class Dao2Interface {
 	public List<Class<?>> convertJarFileToClasses(URL[] url, JarFile jar) throws ClassNotFoundException, IOException {
 		List<Class<?>> classList = new ArrayList<Class<?>>();		
 		URLClassLoader loader = new URLClassLoader(url);
-		Enumeration<JarEntry> e = jar.entries();		
-
+		Enumeration<JarEntry> e = jar.entries();
+		int entries = 0;
 		while (e.hasMoreElements()) {
 			JarEntry je = e.nextElement();		
-
+			entries++;
+			System.out.println("||Entry N° " + entries + " : " + je.getName());
 			if(je.isDirectory() || !je.getName().endsWith(".class") || !je.getName().contains("DAO")){
 				continue;
 			}
@@ -135,106 +171,112 @@ public class Dao2Interface {
 			String className = je.getName().substring(0,je.getName().length()-6);
 			className = className.replace('/', '.');
 			Class<?> c = loader.loadClass(className);
-			System.out.println("Class found: " + c.getName());
+			System.out.println("DAO Classes found: " + c.getName() + ".\n");
 			classList.add(c);
 		}
-		System.out.println("Class list size : " + classList.size());
+		System.out.println("DAO Classes list size : " + classList.size() + "/" + entries + " entries.\n");
 		jar.close();
 		loader.close();
 		return classList;
 	}
 
 	public void createInterfaceFromDAOClasses(List<Class<?>> classes) throws FileNotFoundException {
-		File interfaceFolder = new File(projetUrl + "src/main/java/fr/inra/ctig/" + projectName + "/idao/");		
-		ClassToInterface toInterface;
-		BufferedOutputStream interfaceWriter = null;		
-		interfaceFolder.mkdir();
-		if(interfaceFolder.exists() && interfaceFolder.isDirectory()) {
-			System.out.println("Created folder : " + interfaceFolder.getPath());			
-		}
-
-		for(Class<?> c : classes) {
-			byte[] buffer;
-			String name = getClassName(c);
-			String packageName = getPackageName(c);
-			Method[] methods = c.getMethods();
-			Field[] fields = c.getFields();
-			toInterface = new ClassToInterface(name, packageName, methods, fields);			
-			File IDao = new File(interfaceFolder.getAbsolutePath() + "/I" + toInterface.getName() + ".java");			
-			try {
-				interfaceWriter = new BufferedOutputStream(new FileOutputStream(IDao));
-				String packaging = "package " + toInterface.getPackageName().substring(0, toInterface.getPackageName().length() - 3) + "idao;\n\n";
-				HashSet<String> imports = new HashSet<String>();
-				buffer = packaging.getBytes(); 
-				interfaceWriter.write(buffer);
-				for(Method method : methods) {
-					String type = method.getGenericReturnType().toString();
-					String imp = "import ";					
-					if(type.contains("class")) {
-						int startIndex = 0;
-						startIndex = type.indexOf(" ") + 1;
-						type = type.substring(startIndex);
-					} else if (type.contains("interface")) {
-						int startIndex = 0;
-						startIndex = type.indexOf(" ") + 1;
-						type = type.substring(startIndex);
-					} else if (type.contains("<")) {
-						int arrowIndex = 0;						
-						arrowIndex = type.indexOf("<");
-						String MType = type.substring(0, arrowIndex);
-						String genType = type.substring(arrowIndex + 1, type.length() - 1);						
-						String imp2 = "import " + genType + ";\n";					    
-						if (!imports.contains(imp2) && !excludedTypeNames.contains(genType)) {						
-							imports.add(imp2);
-							buffer = imp2.getBytes(); 
+		if(!classes.isEmpty()) {
+			File interfaceFolder = new File(projetUrl + "src/main/java/fr/inra/ctig/" + projectName + "/idao/");		
+			ClassToInterface toInterface;
+			BufferedOutputStream interfaceWriter = null;		
+			interfaceFolder.mkdir();
+			if(interfaceFolder.exists() && interfaceFolder.isDirectory()) {
+				System.out.println("Created folder : " + interfaceFolder.getPath() + ".\n");			
+			}
+			
+			for(Class<?> c : classes) {
+				byte[] buffer;
+				String name = getClassName(c);
+				String packageName = getPackageName(c);
+				Method[] methods = c.getMethods();
+				Field[] fields = c.getFields();
+				toInterface = new ClassToInterface(name, packageName, methods, fields);			
+				File IDao = new File(interfaceFolder.getAbsolutePath() + "/I" + toInterface.getName() + ".java");			
+				try {
+					interfaceWriter = new BufferedOutputStream(new FileOutputStream(IDao));
+					String packaging = "package " + toInterface.getPackageName().substring(0, toInterface.getPackageName().length() - 3) + "idao;\n\n";
+					HashSet<String> imports = new HashSet<String>();
+					buffer = packaging.getBytes(); 
+					interfaceWriter.write(buffer);
+					for(Method method : methods) {
+						String type = method.getGenericReturnType().toString();
+						String imp = "import ";					
+						if(type.contains("class")) {
+							int startIndex = 0;
+							startIndex = type.indexOf(" ") + 1;
+							type = type.substring(startIndex);
+						} else if (type.contains("interface")) {
+							int startIndex = 0;
+							startIndex = type.indexOf(" ") + 1;
+							type = type.substring(startIndex);
+						} else if (type.contains("<")) {
+							int arrowIndex = 0;						
+							arrowIndex = type.indexOf("<");
+							String MType = type.substring(0, arrowIndex);
+							String genType = type.substring(arrowIndex + 1, type.length() - 1);						
+							String imp2 = "import " + genType + ";\n";					    
+							if (!imports.contains(imp2) && !excludedTypeNames.contains(genType)) {						
+								imports.add(imp2);
+								buffer = imp2.getBytes(); 
+								interfaceWriter.write(buffer);
+							}
+							type = MType;
+						}
+						imp += type + ";\n";					
+						if (!imports.contains(imp) && !excludedTypeNames.contains(type)) {						
+							imports.add(imp);
+							buffer = imp.getBytes(); 
 							interfaceWriter.write(buffer);
 						}
-						type = MType;
 					}
-					imp += type + ";\n";					
-					if (!imports.contains(imp) && !excludedTypeNames.contains(type)) {						
-						imports.add(imp);
-						buffer = imp.getBytes(); 
-						interfaceWriter.write(buffer);
-					}
-				}
-				String ret = "\n";
-				buffer = ret.getBytes(); 
-				interfaceWriter.write(buffer);				
-				String interfaceSignature = "public interface I" + toInterface.getName() + " {\n\n";
-				buffer = interfaceSignature.getBytes();
-				interfaceWriter.write(buffer);
-				for(Method method : methods) {
-					String methodSignature;
-					String parameters = "";
-					for(Parameter param : method.getParameters()) {
-						if(parameters.length() > 0) {
-							parameters += ", ";
-						}						
-						parameters += getNameOnly(param.getParameterizedType().getTypeName()) + " " + param.getName();
-					}
-					if (method.getName() != "close" && method.getName() != "wait" && method.getName() != "toString" && method.getName() != "hashCode" 
-							&& method.getName() != "equals" && method.getName() != "getClass" && method.getName() != "notify" && method.getName() != "notifyAll" ) {
-						methodSignature = "public " + getNameOnly(method.getGenericReturnType().toString()) + " " + method.getName() + " (" + parameters + ");\n\n";
-						buffer = methodSignature.getBytes();
-						interfaceWriter.write(buffer);
-					}
+					String ret = "\n";
+					buffer = ret.getBytes(); 
+					interfaceWriter.write(buffer);				
+					String interfaceSignature = "public interface I" + toInterface.getName() + " {\n\n";
+					buffer = interfaceSignature.getBytes();
+					interfaceWriter.write(buffer);
+					for(Method method : methods) {
+						String methodSignature;
+						String parameters = "";
+						for(Parameter param : method.getParameters()) {
+							if(parameters.length() > 0) {
+								parameters += ", ";
+							}						
+							parameters += getNameOnly(param.getParameterizedType().getTypeName()) + " " + param.getName();
+						}
+						if (method.getName() != "close" && method.getName() != "wait" && method.getName() != "toString" && method.getName() != "hashCode" 
+								&& method.getName() != "equals" && method.getName() != "getClass" && method.getName() != "notify" && method.getName() != "notifyAll" ) {
+							methodSignature = "public " + getNameOnly(method.getGenericReturnType().toString()) + " " + method.getName() + " (" + parameters + ");\n\n";
+							buffer = methodSignature.getBytes();
+							interfaceWriter.write(buffer);
+						}
 
-				}
-				String closingBrace = "}";
-				buffer = closingBrace.getBytes();
-				interfaceWriter.write(buffer);
-				System.out.println("Interface : " + IDao.toString());
-			} catch (IOException e) {				
-				e.printStackTrace();
-			} finally {
-				try {
-					interfaceWriter.flush();
-				} catch (IOException e) {					
+					}
+					String closingBrace = "}";
+					buffer = closingBrace.getBytes();
+					interfaceWriter.write(buffer);
+					System.out.println("Interface : " + IDao.toString());
+				} catch (IOException e) {				
 					e.printStackTrace();
-				}
-			}			
+				} finally {
+					try {
+						interfaceWriter.flush();
+					} catch (IOException e) {					
+						e.printStackTrace();
+					}
+				}			
+			}
+		} else {
+			System.out.println("Pas de fichier JAR ou WAR contenant des DAO à exploiter dans le dossier /target de votre projet, veuillez en créer un pour continuer.");
+			System.exit(0);
 		}
+		
 	}
 
 	public static String getPackageName(Class<?> c) {
